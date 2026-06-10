@@ -11,21 +11,20 @@ The project is now split into focused C++ modules instead of one large `main.cpp
 
 | Module | Responsibility |
 |---|---|
-| `vector_index.hpp` | Brute force, KD-Tree, HNSW, distance metrics, demo vector DB |
-| `document_store.hpp` | Persistent document chunks, embeddings, reloadable local store |
-| `ai_provider.hpp` | Pluggable AI provider interface with Ollama and Qwen/DashScope backends |
-| `server_app.hpp` | HTTP routes, RAG pipeline, MCP-style tools, eval endpoint |
-| `eval_harness.hpp` | Retrieval recall/latency evaluation helper |
-| `json_utils.hpp` | Minimal JSON boundary helpers |
-| `text_chunker.hpp` | Overlapping word chunker for RAG ingestion |
-| `demo_data.hpp` | 16D demo vectors |
-| `smoke_test.cpp` | Fast regression smoke test for search, persistence, chunking, JSON parsing |
+| `src/vector/` | Brute force, KD-Tree, HNSW, distance metrics, demo vector DB |
+| `src/rag/` | Persistent document chunks, chunking, retrieval eval helper |
+| `src/ai/` | Pluggable AI provider interface with Ollama and Qwen/DashScope backends |
+| `src/server/` | HTTP routes, RAG pipeline, MCP-style tools, eval endpoint |
+| `src/util/` | Minimal JSON boundary helpers |
+| `web/` | Frontend UI |
+| `tests/` | Fast regression smoke test for search, persistence, chunking, JSON parsing |
+| `third_party/` | Vendored single-header dependencies |
 
 Recommended Windows build commands:
 
 ```powershell
-g++ -std=c++17 -O2 main.cpp -o db_refactored.exe -static -static-libgcc -static-libstdc++ -lws2_32
-g++ -std=c++17 -O2 smoke_test.cpp -o smoke_test.exe -static -static-libgcc -static-libstdc++ -lws2_32
+g++ -std=c++17 -O2 src/main.cpp -o db_refactored.exe -static -static-libgcc -static-libstdc++ -lws2_32
+g++ -std=c++17 -O2 tests/smoke_test.cpp -o smoke_test.exe -static -static-libgcc -static-libstdc++ -lws2_32
 .\smoke_test.exe
 .\db_refactored.exe
 ```
@@ -60,7 +59,7 @@ ollama serve
 Qwen uses DashScope's OpenAI-compatible HTTPS API. Build with `CPPHTTPLIB_OPENSSL_SUPPORT` and link OpenSSL when enabling this provider.
 
 ```powershell
-g++ -std=c++17 -O2 -DCPPHTTPLIB_OPENSSL_SUPPORT main.cpp -o db_qwen.exe -static -static-libgcc -static-libstdc++ -lssl -lcrypto -lcrypt32 -lws2_32
+g++ -std=c++17 -O2 -DCPPHTTPLIB_OPENSSL_SUPPORT src/main.cpp -o db_qwen.exe -static -static-libgcc -static-libstdc++ -lssl -lcrypto -lcrypt32 -lws2_32
 $env:AI_PROVIDER="qwen"
 $env:QWEN_API_KEY="your-api-key"
 $env:QWEN_EMBED_MODEL="text-embedding-v4"
@@ -196,20 +195,16 @@ You should see both models listed.
 Open **PowerShell** and run:
 
 ```powershell
-git clone https://github.com/YOUR_USERNAME/VectorDB.git
-cd VectorDB
+git clone https://github.com/max-sjt/AI-Search-Engine.git
+cd AI-Search-Engine
 ```
-
-*(Replace `YOUR_USERNAME` with the actual GitHub username)*
-
----
 
 ### Step 5 — Compile the C++ Server
 
-Inside the `VectorDB` folder, run:
+Inside the `AI-Search-Engine` folder, run:
 
 ```powershell
-g++ -std=c++17 -O2 main.cpp -o db -lws2_32
+g++ -std=c++17 -O2 src/main.cpp -o db -lws2_32
 ```
 
 This produces `db.exe`. It takes about 10–20 seconds.
@@ -335,14 +330,21 @@ curl -X POST http://localhost:8080/doc/ask `
 ## Project Structure
 
 ```
-VectorDB/
-├── main.cpp        ← C++ backend (HNSW, KD-Tree, BruteForce, REST API, RAG)
-├── httplib.h       ← Single-header HTTP server library (cpp-httplib)
-├── index.html      ← Frontend (PCA scatter plot, chat UI, benchmark)
-└── README.md       ← This file
+AI-Search-Engine/
+├── src/
+│   ├── ai/         ← AI provider abstraction, Ollama, Qwen/DashScope
+│   ├── rag/        ← document store, chunking, retrieval eval
+│   ├── server/     ← REST routes, MCP-style tools, RAG orchestration
+│   ├── util/       ← JSON helpers
+│   ├── vector/     ← HNSW, KD-Tree, brute force vector search
+│   └── main.cpp    ← server entrypoint
+├── web/            ← frontend UI
+├── tests/          ← smoke tests
+├── third_party/    ← vendored httplib
+└── README.md
 ```
 
-### Architecture (main.cpp)
+### Architecture
 
 ```
 BruteForce          O(N·d)      Exact, baseline

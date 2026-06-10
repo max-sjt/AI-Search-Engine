@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ai_provider.hpp"
+#include "../ai/ai_provider.hpp"
 #include "document_store.hpp"
 
 #include <chrono>
