@@ -5,6 +5,41 @@ Implements **HNSW**, **KD-Tree**, and **Brute Force** search algorithms side-by-
 
 > Built as an educational project to show how production vector databases like Pinecone, Weaviate, and Chroma actually work under the hood.
 
+## Refactored Architecture
+
+The project is now split into focused C++ modules instead of one large `main.cpp`:
+
+| Module | Responsibility |
+|---|---|
+| `vector_index.hpp` | Brute force, KD-Tree, HNSW, distance metrics, demo vector DB |
+| `document_store.hpp` | Persistent document chunks, embeddings, reloadable local store |
+| `ollama_client.hpp` | Ollama embedding and generation client |
+| `server_app.hpp` | HTTP routes, RAG pipeline, MCP-style tools, eval endpoint |
+| `eval_harness.hpp` | Retrieval recall/latency evaluation helper |
+| `json_utils.hpp` | Minimal JSON boundary helpers |
+| `text_chunker.hpp` | Overlapping word chunker for RAG ingestion |
+| `demo_data.hpp` | 16D demo vectors |
+| `smoke_test.cpp` | Fast regression smoke test for search, persistence, chunking, JSON parsing |
+
+Recommended Windows build commands:
+
+```powershell
+g++ -std=c++17 -O2 main.cpp -o db_refactored.exe -static -static-libgcc -static-libstdc++ -lws2_32
+g++ -std=c++17 -O2 smoke_test.cpp -o smoke_test.exe -static -static-libgcc -static-libstdc++ -lws2_32
+.\smoke_test.exe
+.\db_refactored.exe
+```
+
+The static flags avoid PATH conflicts between MSYS2, Anaconda, and other MinGW runtime DLLs.
+
+Additional engineering endpoints:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /mcp/tools` | Lists MCP-style tools: `search_docs`, `list_sources`, `ask_doc` |
+| `POST /mcp/call` | Calls a tool with JSON input |
+| `POST /eval/retrieval` | Runs a single retrieval eval case with recall@k and latency |
+
 ---
 
 ## What This Project Does
