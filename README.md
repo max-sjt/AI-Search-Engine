@@ -1,7 +1,7 @@
 # VectorDB — Build a Vector Database from Scratch in C++
 
 A fully working **Vector Database** built from scratch in C++ with a web UI.  
-Implements **HNSW**, **KD-Tree**, and **Brute Force** search algorithms side-by-side, plus a **RAG pipeline** powered by a local LLM via Ollama.
+Implements **HNSW**, **KD-Tree**, and **Brute Force** search algorithms side-by-side, plus a **RAG pipeline** powered by pluggable AI providers: local Ollama by default, or Qwen/DashScope API.
 
 > Built as an educational project to show how production vector databases like Pinecone, Weaviate, and Chroma actually work under the hood.
 
@@ -13,7 +13,7 @@ The project is now split into focused C++ modules instead of one large `main.cpp
 |---|---|
 | `vector_index.hpp` | Brute force, KD-Tree, HNSW, distance metrics, demo vector DB |
 | `document_store.hpp` | Persistent document chunks, embeddings, reloadable local store |
-| `ollama_client.hpp` | Ollama embedding and generation client |
+| `ai_provider.hpp` | Pluggable AI provider interface with Ollama and Qwen/DashScope backends |
 | `server_app.hpp` | HTTP routes, RAG pipeline, MCP-style tools, eval endpoint |
 | `eval_harness.hpp` | Retrieval recall/latency evaluation helper |
 | `json_utils.hpp` | Minimal JSON boundary helpers |
@@ -42,6 +42,36 @@ Additional engineering endpoints:
 
 ---
 
+## AI Provider Configuration
+
+The server uses `AI_PROVIDER=ollama` by default, so existing local Ollama workflows continue to work.
+
+### Local Ollama
+
+```powershell
+$env:AI_PROVIDER="ollama"
+$env:OLLAMA_EMBED_MODEL="nomic-embed-text"
+$env:OLLAMA_GEN_MODEL="llama3.2:1b"
+ollama serve
+```
+
+### Qwen / DashScope API
+
+Qwen uses DashScope's OpenAI-compatible HTTPS API. Build with `CPPHTTPLIB_OPENSSL_SUPPORT` and link OpenSSL when enabling this provider.
+
+```powershell
+g++ -std=c++17 -O2 -DCPPHTTPLIB_OPENSSL_SUPPORT main.cpp -o db_qwen.exe -static -static-libgcc -static-libstdc++ -lssl -lcrypto -lcrypt32 -lws2_32
+$env:AI_PROVIDER="qwen"
+$env:QWEN_API_KEY="your-api-key"
+$env:QWEN_EMBED_MODEL="text-embedding-v4"
+$env:QWEN_GEN_MODEL="qwen-plus"
+.\db_qwen.exe
+```
+
+If the embedding model changes vector dimensions, clear or rebuild `data/documents.tsv` before inserting new documents.
+
+---
+
 ## What This Project Does
 
 | Feature | Description |
@@ -50,8 +80,8 @@ Additional engineering endpoints:
 | **3 Distance Metrics** | Cosine similarity, Euclidean distance, Manhattan distance |
 | **16D Demo Vectors** | 20 pre-loaded semantic vectors across 4 categories (CS, Math, Food, Sports) |
 | **2D PCA Scatter Plot** | Live visualization of semantic space — watch clusters form |
-| **Real Document Embedding** | Paste any text → Ollama embeds it with `nomic-embed-text` (768D) |
-| **RAG Pipeline** | Ask questions about your documents → HNSW retrieves context → local LLM answers |
+| **Real Document Embedding** | Paste any text → the selected AI provider embeds it |
+| **RAG Pipeline** | Ask questions about your documents → HNSW retrieves context → the selected model answers |
 | **Full REST API** | CRUD endpoints: insert, delete, search, benchmark, hnsw-info |
 
 ---
@@ -62,7 +92,7 @@ Additional engineering endpoints:
 Your Text
     │
     ▼
-Ollama (nomic-embed-text)          ← converts text to a 768-dimensional vector
+AI Provider embedding model        ← converts text to a vector
     │
     ▼
 HNSW Index (C++)                   ← indexes the vector in a multilayer graph
@@ -71,7 +101,7 @@ HNSW Index (C++)                   ← indexes the vector in a multilayer graph
 Semantic Search                    ← finds nearest neighbors in vector space
     │
     ▼
-Ollama (llama3.2)                  ← reads retrieved chunks, generates an answer
+AI Provider generation model       ← reads retrieved chunks, generates an answer
     │
     ▼
 Answer
@@ -209,8 +239,8 @@ You should see:
 === VectorDB Engine ===
 http://localhost:8080
 20 demo vectors | 16 dims | HNSW+KD-Tree+BruteForce
-Ollama: ONLINE
-  embed model: nomic-embed-text  gen model: llama3.2
+AI provider: ollama ONLINE
+  embed model: nomic-embed-text  gen model: llama3.2:1b
 ```
 
 **Open your browser** and go to:
@@ -250,10 +280,10 @@ This uses Ollama to generate **real 768-dimensional embeddings** from any text.
 
 What happens behind the scenes:
 ```
-1. Your question → embedded with nomic-embed-text (768D vector)
+1. Your question → embedded with the selected provider embedding model
 2. HNSW search → finds 3 most semantically similar chunks
-3. Retrieved chunks → sent as context to llama3.2
-4. llama3.2 → generates an answer based only on your documents
+3. Retrieved chunks → sent as context to the selected generation model
+4. The generation model → generates an answer based on your documents
 ```
 
 The answer streams in with a typewriter effect. Click the **context chips** to see exactly which chunks the AI used.
@@ -284,7 +314,7 @@ The server exposes a full REST API at `http://localhost:8080`.
 | `GET` | `/doc/list` | — | List all stored documents |
 | `DELETE` | `/doc/delete/:id` | — | Delete document chunk |
 | `POST` | `/doc/ask` | `{"question":"...","k":3}` | RAG: retrieve + generate |
-| `GET` | `/status` | — | Ollama status and model info |
+| `GET` | `/status` | — | AI provider status and model info |
 
 ### Example: Search via curl
 
@@ -320,8 +350,8 @@ KDTree              O(log N)    Exact, axis-aligned partitioning
 HNSW                O(log N)    Approximate, multilayer small-world graph
 
 VectorDB            Unified interface over all 3 (16D demo vectors)
-DocumentDB          HNSW-only index for real Ollama embeddings (768D)
-OllamaClient        HTTP client → /api/embeddings + /api/generate
+DocumentDB          HNSW-only index for real provider embeddings
+AiProvider          Interface over Ollama local models and Qwen/DashScope API
 ```
 
 ---
@@ -354,7 +384,7 @@ KD-Tree pruning relies on axis-aligned distance bounds. In high dimensions, almo
 
 | Problem | Fix |
 |---|---|
-| `Ollama: OFFLINE` in header | Run `ollama serve` in a terminal |
+| AI provider is offline in header | Check `/status`, then follow the displayed provider setup hint |
 | Embedding takes forever | Ollama is downloading the model on first use, wait 2 min |
 | `g++: command not found` | Add `C:\msys64\ucrt64\bin` to Windows PATH |
 | Port 8080 already in use | Kill the process: `netstat -ano \| findstr 8080` then `taskkill /PID <pid> /F` |
@@ -368,11 +398,11 @@ If llama3.2 is too slow on your laptop, switch to the 1B model:
 ollama pull llama3.2:1b
 ```
 
-Then edit [main.cpp](main.cpp) line where `genModel` is set:
-```cpp
-std::string genModel = "llama3.2:1b";   // change this
+Then set the model through an environment variable:
+```powershell
+$env:OLLAMA_GEN_MODEL="llama3.2:1b"
 ```
-Recompile and restart.
+Restart the server.
 
 ---
 

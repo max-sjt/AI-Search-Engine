@@ -642,6 +642,22 @@ async function checkOllamaStatus() {
     const r=await fetch(API+'/status'), d=await r.json();
     const badge=document.getElementById('ollamaBadge');
     const box=document.getElementById('ollamaStatus');
+    const provider=(d.provider||'ai').toUpperCase();
+    if (d.aiAvailable ?? d.ollamaAvailable) {
+      badge.className='badge ok'; badge.textContent=provider+' OK';
+      box.className='ollama-status ok';
+      box.innerHTML=`<span style="color:var(--green)">Provider: ${provider}</span><br>`+
+        `Embed: <span style="color:var(--accent)">${d.embedModel}</span><br>`+
+        `Generate: <span style="color:var(--accent)">${d.genModel}</span><br>`+
+        `Dims: <span style="color:var(--muted)">${d.docDims||'(first insert sets this)'}</span><br>`+
+        `Documents: <span style="color:var(--text)">${d.docCount}</span>`;
+    } else {
+      badge.className='badge err'; badge.textContent=provider+' OFF';
+      box.className='ollama-status err';
+      box.innerHTML=`<span style="color:var(--red)">Provider offline</span><br><br>`+
+        `<span style="color:var(--muted)">${d.setupHint||'Configure AI_PROVIDER and model credentials.'}</span>`;
+    }
+    return;
     if (d.ollamaAvailable) {
       badge.className='badge ok'; badge.textContent='OLLAMA ✓';
       box.className='ollama-status ok';
