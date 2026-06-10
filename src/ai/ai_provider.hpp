@@ -4,8 +4,8 @@
 #define _WIN32_WINNT 0x0A00
 #endif
 
-#include "httplib.h"
-#include "json_utils.hpp"
+#include "../util/json_utils.hpp"
+#include "../../third_party/httplib.h"
 
 #include <algorithm>
 #include <cctype>

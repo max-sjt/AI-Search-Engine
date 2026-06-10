@@ -1,4 +1,4 @@
-#include "server_app.hpp"
+#include "server/server_app.hpp"
 
 int main() {
     return runServer();

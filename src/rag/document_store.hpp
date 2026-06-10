@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vector_index.hpp"
+#include "../vector/vector_index.hpp"
 
 #include <algorithm>
 #include <cstdio>

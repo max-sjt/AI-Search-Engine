@@ -2,11 +2,11 @@
 #define _WIN32_WINNT 0x0A00
 #endif
 
-#include "ai_provider.hpp"
-#include "document_store.hpp"
-#include "json_utils.hpp"
-#include "text_chunker.hpp"
-#include "vector_index.hpp"
+#include "../src/ai/ai_provider.hpp"
+#include "../src/rag/document_store.hpp"
+#include "../src/rag/text_chunker.hpp"
+#include "../src/util/json_utils.hpp"
+#include "../src/vector/vector_index.hpp"
 
 #include <cstdio>
 #include <iostream>

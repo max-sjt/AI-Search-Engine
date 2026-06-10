@@ -4,14 +4,14 @@
 #define _WIN32_WINNT 0x0A00
 #endif
 
-#include "ai_provider.hpp"
-#include "demo_data.hpp"
-#include "document_store.hpp"
-#include "eval_harness.hpp"
-#include "httplib.h"
-#include "json_utils.hpp"
-#include "text_chunker.hpp"
-#include "vector_index.hpp"
+#include "../ai/ai_provider.hpp"
+#include "../rag/document_store.hpp"
+#include "../rag/eval_harness.hpp"
+#include "../rag/text_chunker.hpp"
+#include "../util/json_utils.hpp"
+#include "../vector/demo_data.hpp"
+#include "../vector/vector_index.hpp"
+#include "../../third_party/httplib.h"
 
 #include <algorithm>
 #include <fstream>
@@ -446,7 +446,10 @@ inline void registerRoutes(
     });
 
     svr.Get("/", [](const httplib::Request&, httplib::Response& res) {
-        std::ifstream file("index.html");
+        std::ifstream file("web/index.html");
+        if (!file.is_open()) {
+            file.open("index.html");
+        }
         if (!file.is_open()) {
             res.status = 404;
             return;
