@@ -4,12 +4,12 @@
 #define _WIN32_WINNT 0x0A00
 #endif
 
+#include "ai_provider.hpp"
 #include "demo_data.hpp"
 #include "document_store.hpp"
 #include "eval_harness.hpp"
 #include "httplib.h"
 #include "json_utils.hpp"
-#include "ollama_client.hpp"
 #include "text_chunker.hpp"
 #include "vector_index.hpp"
 
@@ -187,7 +187,7 @@ inline void registerRoutes(
     httplib::Server& svr,
     VectorDB& vectorDb,
     DocumentStore& docs,
-    OllamaClient& ollama)
+    AiProvider& ai)
 {
     svr.Options(".*", [](const httplib::Request&, httplib::Response& res) {
         setCors(res);
@@ -285,9 +285,9 @@ inline void registerRoutes(
         std::vector<int> ids;
         auto chunks = chunkText(text, 250, 30);
         for (int i = 0; i < (int)chunks.size(); i++) {
-            auto embedding = ollama.embed(chunks[i]);
+            auto embedding = ai.embed(chunks[i]);
             if (embedding.empty()) {
-                res.set_content("{\"error\":\"Ollama unavailable\"}", "application/json");
+                res.set_content("{\"error\":\"AI provider unavailable\"}", "application/json");
                 return;
             }
             const std::string chunkTitle = chunks.size() > 1
@@ -328,9 +328,9 @@ inline void registerRoutes(
             res.set_content("{\"error\":\"need question\"}", "application/json");
             return;
         }
-        auto qEmbedding = ollama.embed(question);
+        auto qEmbedding = ai.embed(question);
         if (qEmbedding.empty()) {
-            res.set_content("{\"error\":\"Ollama unavailable\"}", "application/json");
+            res.set_content("{\"error\":\"AI provider unavailable\"}", "application/json");
             return;
         }
         res.set_content(docSearchToJson(docs.search(qEmbedding, k), false), "application/json");
@@ -344,17 +344,18 @@ inline void registerRoutes(
             res.set_content("{\"error\":\"need question\"}", "application/json");
             return;
         }
-        auto qEmbedding = ollama.embed(question);
+        auto qEmbedding = ai.embed(question);
         if (qEmbedding.empty()) {
-            res.set_content("{\"error\":\"Ollama unavailable\"}", "application/json");
+            res.set_content("{\"error\":\"AI provider unavailable\"}", "application/json");
             return;
         }
         auto hits = docs.search(qEmbedding, k);
-        auto answer = ollama.generate(buildRagPrompt(question, hits));
+        auto answer = ai.generate(buildRagPrompt(question, hits));
 
         std::ostringstream ss;
         ss << "{\"answer\":" << jsonString(answer)
-           << ",\"model\":" << jsonString(ollama.genModel)
+           << ",\"provider\":" << jsonString(ai.name())
+           << ",\"model\":" << jsonString(ai.generationModel())
            << ",\"contexts\":" << docContextsArrayToJson(hits, true)
            << ",\"docCount\":" << docs.size() << '}';
         res.set_content(ss.str(), "application/json");
@@ -362,11 +363,15 @@ inline void registerRoutes(
 
     svr.Get("/status", [&](const httplib::Request&, httplib::Response& res) {
         setCors(res);
-        const bool up = ollama.isAvailable();
+        const bool up = ai.isAvailable();
+        const bool ollamaUp = ai.name() == "ollama" && up;
         std::ostringstream ss;
-        ss << "{\"ollamaAvailable\":" << (up ? "true" : "false")
-           << ",\"embedModel\":" << jsonString(ollama.embedModel)
-           << ",\"genModel\":" << jsonString(ollama.genModel)
+        ss << "{\"aiAvailable\":" << (up ? "true" : "false")
+           << ",\"ollamaAvailable\":" << (ollamaUp ? "true" : "false")
+           << ",\"provider\":" << jsonString(ai.name())
+           << ",\"embedModel\":" << jsonString(ai.embeddingModel())
+           << ",\"genModel\":" << jsonString(ai.generationModel())
+           << ",\"setupHint\":" << jsonString(ai.setupHint())
            << ",\"docCount\":" << docs.size()
            << ",\"docDims\":" << docs.dims()
            << ",\"demoDims\":" << DEMO_DIMS
@@ -407,9 +412,9 @@ inline void registerRoutes(
             res.set_content("{\"error\":\"question required\"}", "application/json");
             return;
         }
-        auto qEmbedding = ollama.embed(question);
+        auto qEmbedding = ai.embed(question);
         if (qEmbedding.empty()) {
-            res.set_content("{\"error\":\"Ollama unavailable\"}", "application/json");
+            res.set_content("{\"error\":\"AI provider unavailable\"}", "application/json");
             return;
         }
         auto hits = docs.search(qEmbedding, k);
@@ -417,7 +422,7 @@ inline void registerRoutes(
             res.set_content(docSearchToJson(hits, true), "application/json");
             return;
         }
-        std::string answer = ollama.generate(buildRagPrompt(question, hits));
+        std::string answer = ai.generate(buildRagPrompt(question, hits));
         res.set_content("{\"answer\":" + jsonString(answer) +
             ",\"contexts\":" + docContextsArrayToJson(hits, true) + "}", "application/json");
     });
@@ -431,7 +436,7 @@ inline void registerRoutes(
             res.set_content("{\"error\":\"need question and expectedTitle\"}", "application/json");
             return;
         }
-        auto report = runRetrievalEval({{question, expected}}, docs, ollama, k);
+        auto report = runRetrievalEval({{question, expected}}, docs, ai, k);
         std::ostringstream ss;
         ss << "{\"total\":" << report.total
            << ",\"hits\":" << report.hits
@@ -455,23 +460,26 @@ inline void registerRoutes(
 inline int runServer() {
     VectorDB vectorDb(DEMO_DIMS);
     DocumentStore docs("data/documents.tsv");
-    OllamaClient ollama;
+    auto ai = createAiProviderFromEnv();
     loadDemoVectors(vectorDb);
 
-    const bool ollamaUp = ollama.isAvailable();
+    const bool aiUp = ai->isAvailable();
     std::cout << "=== VectorDB Engine ===\n";
     std::cout << "http://localhost:8080\n";
     std::cout << vectorDb.size() << " demo vectors | " << DEMO_DIMS
               << " dims | HNSW+KD-Tree+BruteForce\n";
     std::cout << docs.size() << " persisted document chunks | MCP+Eval endpoints enabled\n";
-    std::cout << "Ollama: " << (ollamaUp ? "ONLINE" : "OFFLINE (install from ollama.com)") << "\n";
-    if (ollamaUp) {
-        std::cout << "  embed model: " << ollama.embedModel
-                  << "  gen model: " << ollama.genModel << "\n";
+    std::cout << "AI provider: " << ai->name() << ' '
+              << (aiUp ? "ONLINE" : "OFFLINE") << "\n";
+    if (aiUp) {
+        std::cout << "  embed model: " << ai->embeddingModel()
+                  << "  gen model: " << ai->generationModel() << "\n";
+    } else {
+        std::cout << "  setup: " << ai->setupHint() << "\n";
     }
 
     httplib::Server svr;
-    registerRoutes(svr, vectorDb, docs, ollama);
+    registerRoutes(svr, vectorDb, docs, *ai);
     svr.listen("0.0.0.0", 8080);
     return 0;
 }

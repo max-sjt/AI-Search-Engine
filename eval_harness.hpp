@@ -1,7 +1,7 @@
 #pragma once
 
+#include "ai_provider.hpp"
 #include "document_store.hpp"
-#include "ollama_client.hpp"
 
 #include <chrono>
 #include <string>
@@ -22,7 +22,7 @@ struct EvalReport {
 inline EvalReport runRetrievalEval(
     const std::vector<EvalCase>& cases,
     const DocumentStore& docs,
-    const OllamaClient& ollama,
+    const AiProvider& ai,
     int k)
 {
     EvalReport report;
@@ -30,7 +30,7 @@ inline EvalReport runRetrievalEval(
 
     const auto started = std::chrono::high_resolution_clock::now();
     for (const auto& testCase : cases) {
-        auto embedding = ollama.embed(testCase.question);
+        auto embedding = ai.embed(testCase.question);
         if (embedding.empty()) {
             continue;
         }

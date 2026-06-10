@@ -2,6 +2,7 @@
 #define _WIN32_WINNT 0x0A00
 #endif
 
+#include "ai_provider.hpp"
 #include "document_store.hpp"
 #include "json_utils.hpp"
 #include "text_chunker.hpp"
@@ -68,10 +69,23 @@ void testUtilities() {
     check(chunks[1] == "three four five", "chunker preserves overlap window");
 }
 
+void testAiProviders() {
+    OllamaProvider ollama;
+    check(ollama.name() == "ollama", "ollama provider exposes provider name");
+    check(!ollama.embeddingModel().empty(), "ollama provider exposes embedding model");
+    check(!ollama.generationModel().empty(), "ollama provider exposes generation model");
+
+    QwenProvider qwen;
+    check(qwen.name() == "qwen", "qwen provider exposes provider name");
+    check(!qwen.embeddingModel().empty(), "qwen provider exposes embedding model");
+    check(!qwen.generationModel().empty(), "qwen provider exposes generation model");
+}
+
 int main() {
     testVectorSearch();
     testDocumentPersistence();
     testUtilities();
+    testAiProviders();
 
     if (failures != 0) {
         std::cerr << failures << " smoke test failure(s)\n";
